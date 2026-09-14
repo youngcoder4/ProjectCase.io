@@ -87,7 +87,7 @@
   /* ================= MENU ================= */
   .intro{color:var(--muted);font-size:15px;max-width:62ch;margin:0 0 22px}
   .cases{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
-  .case-card{text-align:left;cursor:pointer;display:grid;grid-template-columns:132px 1fr;gap:14px 16px;align-items:center;
+  .case-card{position:relative;overflow:hidden;text-align:left;cursor:pointer;display:grid;grid-template-columns:132px 1fr;gap:14px 16px;align-items:center;
     padding:16px;border-radius:14px;color:var(--txt);border:1px solid var(--line);
     background:linear-gradient(180deg,var(--rcd),var(--panel) 76%);transition:transform .12s,border-color .15s,box-shadow .2s}
   .case-card:hover{transform:translateY(-3px);border-color:var(--rc);box-shadow:0 20px 40px -22px #000,0 0 34px -14px var(--rcg)}
@@ -118,6 +118,26 @@
   .crate .cph{position:absolute;bottom:8%;font:600 9px/1 "Chakra Petch";letter-spacing:.16em;color:var(--muted-2);text-transform:uppercase}
   .open .crate .lid{transform:translateY(-46%) rotate(-7deg)}
   .open .crate .body{box-shadow:inset 0 0 30px var(--rcg),0 0 46px -8px var(--rcg)}
+
+  /* featured top-prize showcase (menu) */
+  .cc-art{position:relative;aspect-ratio:1/1;display:grid;place-items:center;border-radius:12px;overflow:hidden;
+    border:1px solid var(--line);background:radial-gradient(86% 76% at 50% 116%,var(--rcg),transparent 62%),linear-gradient(180deg,#0e121b,#06090e)}
+  .cc-glow{position:absolute;width:74%;height:74%;border-radius:50%;background:radial-gradient(circle,var(--rcg),transparent 66%);
+    filter:blur(3px);animation:glowpulse 3.4s ease-in-out infinite}
+  .cc-prize{position:relative;z-index:2;max-width:72%;max-height:72%;object-fit:contain;
+    filter:drop-shadow(0 10px 15px rgba(0,0,0,.6));animation:floaty 3.4s ease-in-out infinite}
+  .cc-top{position:absolute;top:8px;left:8px;z-index:3;font:700 8.5px/1 "Chakra Petch";letter-spacing:.13em;text-transform:uppercase;
+    color:var(--rc);background:rgba(0,0,0,.55);border:1px solid var(--rc);border-radius:999px;padding:4px 7px}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  @keyframes glowpulse{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.09)}}
+  .case-card::after{content:"";position:absolute;inset:0;pointer-events:none;transform:translateX(-130%);transition:transform .7s;
+    background:linear-gradient(115deg,transparent 42%,rgba(255,255,255,.07) 50%,transparent 58%)}
+  .case-card:hover::after{transform:translateX(130%)}
+
+  /* opener top-prize chip */
+  .o-prize{display:inline-flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border-radius:999px;border:1px solid var(--rc);
+    background:rgba(0,0,0,.4);font:700 11px/1 "Chakra Petch";letter-spacing:.12em;text-transform:uppercase;color:var(--rc)}
+  .o-prize img{width:20px;height:20px;object-fit:contain}
 
   /* ================= OPENER ================= */
   .back{appearance:none;cursor:pointer;background:none;border:0;color:var(--muted);font:600 13px/1 "Chakra Petch";
@@ -208,7 +228,7 @@
   @media (max-width:430px){ .u-name{display:none} }
   @media (prefers-reduced-motion:reduce){
     .reel-frame.jump{animation:none}
-    .tile.win,.roller.done .tile:not(.win),.case-back img,.crate .lid,.u-coin b.bump{transition:none;animation:none}
+    .tile.win,.roller.done .tile:not(.win),.case-back img,.crate .lid,.u-coin b.bump,.cc-prize,.cc-glow{transition:none;animation:none}
   }
 </style>
 
@@ -260,7 +280,7 @@
   <!-- ===== OPENER ===== -->
   <section id="opener" hidden>
     <button class="back" id="back">&larr; All cases</button>
-    <div class="o-head"><h2 id="oName">Case</h2><span class="o-tag" id="oTag"></span></div>
+    <div class="o-head"><h2 id="oName">Case</h2><span class="o-tag" id="oTag"></span><span class="o-prize" id="oPrize"></span></div>
     <div class="stage" id="stage">
       <div class="stage-main">
         <div class="case-back" id="caseBack">
@@ -324,6 +344,12 @@
   };
   const RANK = { gold:0, level3:1, level2:2, level1:3 };
   const rarityOf = (k) => TIERS[ITEMS[k].tier].rarity;
+  // "best drop" a case advertises: rarest first, then rarer (lower weight), then higher value; a loss (x0) never headlines.
+  const VAL = { gold:100, x3:30, x2:20, plus3:13, plus2:12, plus1:11, none:0, x0:-1 };
+  function topPrizeKey(pool){
+    return [...pool].filter(k=>k!=="x0")
+      .sort((a,b)=> RANK[ITEMS[a].tier]-RANK[ITEMS[b].tier] || ITEMS[a].weight-ITEMS[b].weight || VAL[b]-VAL[a])[0] || pool[0];
+  }
 
   const art = (n) => ({ closed:`assets/case${n}-closed.png`, top:`assets/case${n}-open-top.png`, bottom:`assets/case${n}-open-bottom.png` });
   const CASES = [
@@ -332,6 +358,7 @@
     { id:3, name:"Case 03", tag:"High variance",sig:"red",    img:art(3), cost:3, once:false, pool:["x0","plus3","x3","plus1","plus2","x2","none"] },
     { id:4, name:"Case 04", tag:"Gold inside",  sig:"gold",   img:art(4), cost:0, once:true,  pool:["gold","plus3","x3","x0","plus1","plus2","x2","none"] },
   ];
+  CASES.forEach(c=>{ c.top=topPrizeKey(c.pool); c.accent=rarityOf(c.top); });  // headline prize + its rarity accent
 
   const wordsHTML = (pool) => [...pool]
     .sort((a,b)=>RANK[ITEMS[a].tier]-RANK[ITEMS[b].tier] || ITEMS[b].weight-ITEMS[a].weight)
@@ -365,7 +392,7 @@
 
   /* ---------- dom ---------- */
   const $ = (id) => document.getElementById(id);
-  const menu=$("menu"), opener=$("opener"), casesEl=$("cases");
+  const menu=$("menu"), opener=$("opener"), casesEl=$("cases"), stage=$("stage"), oPrize=$("oPrize");
   const roller=$("roller"), strip=$("strip"), reelFrame=$("reelFrame"), caseBack=$("caseBack");
   const cClosed=$("cClosed"), cTop=$("cTop"), cBottom=$("cBottom");
   const spinBtn=$("spin"), hint=$("hint"), lockNote=$("lockNote"), side=$("side"), muteBtn=$("mute");
@@ -429,12 +456,16 @@
     CASES.forEach(c=>{
       const costLabel = c.once ? "1 try only" : (c.cost+" token"+(c.cost>1?"s":"")+" / spin");
       const card=document.createElement("button");
-      card.className="case-card"; card.dataset.sig=c.sig; card.setAttribute("aria-label",`Open ${c.name}`);
+      card.className="case-card"; card.dataset.r=c.accent; card.setAttribute("aria-label",`Open ${c.name}, top prize ${ITEMS[c.top].label}`);
       card.innerHTML =
-        `<div class="crate"><div class="lid"></div><div class="body"><span class="cn">${c.name}</span></div></div>
+        `<div class="cc-art">
+           <span class="cc-glow"></span>
+           <img class="cc-prize" src="${ITEMS[c.top].img}" alt="${ITEMS[c.top].label}">
+           <span class="cc-top">Top Prize</span>
+         </div>
          <div class="cc-info">
            <div class="cc-topline"><span class="cc-name">${c.name}</span><span class="cc-cost">${costLabel}</span></div>
-           <div class="cc-tag">${c.tag}</div>
+           <div class="cc-tag">${c.tag} · best drop ${ITEMS[c.top].label}</div>
            <ul class="words">${wordsHTML(c.pool)}</ul>
          </div>
          <div class="cc-foot"><span class="cc-cta">Open case →</span><span class="cc-status"></span></div>`;
@@ -459,7 +490,9 @@
   function selectCase(c){
     cur=c; spinning=false; reelShown=false;
     $("oName").textContent=c.name; $("oTag").textContent=c.tag; $("phName").textContent=c.name;
-    caseBack.dataset.sig=c.sig; side.dataset.sig=c.sig;
+    stage.dataset.r=c.accent; caseBack.dataset.r=c.accent;
+    oPrize.dataset.r=c.accent;
+    oPrize.innerHTML=`<img src="${ITEMS[c.top].img}" alt=""> Top prize · ${ITEMS[c.top].label}`;
     side.innerHTML=`<h3>In this case</h3><ul class="words">${wordsHTML(c.pool)}</ul>`;
     caseBack.classList.remove("open"); reelFrame.hidden=true; reelFrame.classList.remove("jump");
     roller.classList.remove("done"); result.hidden=true;
