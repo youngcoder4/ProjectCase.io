@@ -1,0 +1,587 @@
+<title>Case Vault</title>
+<meta name="description" content="Four CS2-style cases with different odds, a per-user token economy, and a reel that leaps out of the case to a rarity reveal.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Deliberately single-theme: a black CS-style unlock screen.
+     Every colour is painted explicitly so the page holds on any host ground. */
+  :root{
+    --bg:#000000; --panel:#0a0c11; --panel-2:#0e121a;
+    --line:#20262f; --line-2:#2f3743;
+    --txt:#eef1f7; --muted:#8b93a6; --muted-2:#5b6474;
+    --gold:#ffcf3f; --gold-2:#f3a712;
+    --good:#5be08a; --bad:#ff6b6b;
+    --tile: clamp(108px, 17vw, 140px);
+    --roll-h: clamp(146px, 22vw, 178px);
+  }
+  [data-r="blue"],[data-sig="blue"]    {--rc:#4b69ff; --rcg:rgba(75,105,255,.55);  --rcd:#141a33}
+  [data-r="purple"],[data-sig="purple"]{--rc:#8847ff; --rcg:rgba(136,71,255,.55);  --rcd:#1b1233}
+  [data-r="red"],[data-sig="red"]      {--rc:#eb4b4b; --rcg:rgba(235,75,75,.55);   --rcd:#2a1414}
+  [data-r="gold"],[data-sig="gold"]    {--rc:#e8b23a; --rcg:rgba(232,178,58,.62);  --rcd:#2a2110}
+
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--txt);font-family:"Rajdhani",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;min-height:100vh;display:flex;justify-content:center;padding:26px 18px 52px}
+  .wrap{width:100%;max-width:960px}
+  [hidden]{display:none!important}
+
+  /* ---- header ---- */
+  .top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:22px}
+  .brand{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .eyebrow{font:600 12px/1 "Chakra Petch",sans-serif;letter-spacing:.34em;color:var(--muted);text-transform:uppercase;margin:0}
+  h1{margin:0;font:700 clamp(24px,5vw,40px)/1 "Chakra Petch",sans-serif;letter-spacing:.02em;
+    background:linear-gradient(180deg,#fff 15%,#cfd4e0 60%,#9aa2b4);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+  /* ---- user HUD (top-right) ---- */
+  .hud{position:relative;display:flex;align-items:center;gap:10px;flex:0 0 auto}
+  .mute{appearance:none;cursor:pointer;width:40px;height:40px;border-radius:10px;border:1px solid var(--line-2);
+    background:var(--panel-2);color:var(--txt);font-size:17px;display:grid;place-items:center;transition:.15s}
+  .mute:hover{border-color:var(--gold);color:var(--gold)}
+  .mute:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .user-chip{display:flex;align-items:center;gap:10px;padding:6px 12px 6px 10px;border-radius:11px;cursor:pointer;
+    border:1px solid var(--line-2);background:linear-gradient(180deg,#12151d,var(--panel-2));transition:.15s;color:var(--txt)}
+  .user-chip:hover{border-color:var(--gold)}
+  .user-chip:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .u-ic{color:var(--muted);display:grid;place-items:center}
+  .u-name{font:600 13px/1 "Chakra Petch",sans-serif;letter-spacing:.03em;white-space:nowrap}
+  .u-coin{display:flex;align-items:center;gap:6px;font:700 15px/1 "Rajdhani";color:var(--gold);
+    font-variant-numeric:tabular-nums;padding-left:10px;border-left:1px solid var(--line)}
+  .coin{width:15px;height:15px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 34% 30%,#ffe487,#e6a70f 70%);
+    box-shadow:inset 0 0 0 1px #8a6207, 0 0 8px rgba(243,167,18,.5)}
+  .u-coin b{display:inline-block}
+  @keyframes coinbump{0%{transform:scale(1)}32%{transform:scale(1.55)}100%{transform:scale(1)}}
+  .u-coin b.bump{animation:coinbump .5s}
+  .u-coin b.up{color:var(--good)} .u-coin b.down{color:var(--bad)}
+  @keyframes chippulse{0%,100%{box-shadow:0 0 0 0 rgba(235,75,75,.55)}50%{box-shadow:0 0 0 7px rgba(235,75,75,0)}}
+  .user-chip.stuck{border-color:var(--bad);animation:chippulse 1.5s infinite}
+
+  .user-panel{position:absolute;top:calc(100% + 10px);right:0;width:288px;z-index:50;padding:16px;border-radius:14px;
+    border:1px solid var(--line-2);background:linear-gradient(180deg,#12151d,#0b0e14);box-shadow:0 26px 64px -22px #000}
+  @keyframes shake{10%,90%{transform:translateX(-1px)}30%,70%{transform:translateX(4px)}50%{transform:translateX(-6px)}}
+  .user-panel.shake{animation:shake .4s}
+  .up-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .up-avatar{width:44px;height:44px;border-radius:11px;flex:0 0 auto;display:grid;place-items:center;color:#0a0c11;
+    background:linear-gradient(180deg,#ffe07a,var(--gold-2))}
+  .up-name{font:700 17px/1 "Chakra Petch";letter-spacing:.03em}
+  .up-sub{font:600 11px/1 "Chakra Petch";letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:5px}
+  .up-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 8px;text-align:center}
+  .stat span{display:block;font:600 9px/1.2 "Chakra Petch";letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .stat b{display:block;margin-top:6px;font:700 17px/1 "Rajdhani";color:#fff;font-variant-numeric:tabular-nums}
+  .up-div{height:1px;background:var(--line);margin:14px 0 12px}
+  .up-reset label{display:block;font:600 10px/1 "Chakra Petch";letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  .reset-row{display:flex;gap:8px}
+  .reset-row input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line-2);border-radius:9px;color:var(--txt);
+    padding:10px 11px;font:600 14px/1 "Rajdhani";letter-spacing:.15em}
+  .reset-row input:focus-visible{outline:2px solid var(--gold);outline-offset:0;border-color:var(--gold)}
+  .reset-row button{appearance:none;cursor:pointer;border:0;border-radius:9px;padding:0 16px;font:700 12px/1 "Chakra Petch";
+    letter-spacing:.1em;text-transform:uppercase;color:#221a04;background:linear-gradient(180deg,#ffe07a,var(--gold-2))}
+  .reset-row button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+  .reset-msg{min-height:16px;margin-top:9px;font:600 12px/1.3 "Rajdhani";letter-spacing:.02em}
+  .reset-msg.ok{color:var(--good)} .reset-msg.err{color:var(--bad)}
+  .up-hint{margin-top:10px;font-size:12px;color:var(--muted-2);line-height:1.45}
+
+  /* ================= MENU ================= */
+  .intro{color:var(--muted);font-size:15px;max-width:62ch;margin:0 0 22px}
+  .cases{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+  .case-card{text-align:left;cursor:pointer;display:grid;grid-template-columns:132px 1fr;gap:14px 16px;align-items:center;
+    padding:16px;border-radius:14px;color:var(--txt);border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--rcd),var(--panel) 76%);transition:transform .12s,border-color .15s,box-shadow .2s}
+  .case-card:hover{transform:translateY(-3px);border-color:var(--rc);box-shadow:0 20px 40px -22px #000,0 0 34px -14px var(--rcg)}
+  .case-card:focus-visible{outline:2px solid var(--rc);outline-offset:3px}
+  .case-card.locked{opacity:.5;filter:saturate(.6)}
+  .case-card.locked:hover{transform:none}
+  .cc-topline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .cc-name{font:700 20px/1 "Chakra Petch",sans-serif;letter-spacing:.03em}
+  .cc-cost{font:600 10px/1 "Chakra Petch";letter-spacing:.1em;text-transform:uppercase;color:var(--gold);
+    border:1px solid rgba(243,167,18,.4);border-radius:999px;padding:4px 8px}
+  .cc-tag{font:600 11px/1 "Chakra Petch",sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--rc);margin:8px 0 12px}
+  .words{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:7px 14px}
+  .words li{display:flex;align-items:center;gap:7px;font:600 14px/1 "Chakra Petch",sans-serif;letter-spacing:.03em;color:#eef1f7}
+  .words .dot{width:8px;height:8px;border-radius:2px;background:var(--rc);box-shadow:0 0 8px var(--rc)}
+  .cc-foot{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:4px}
+  .cc-cta{font:600 11px/1 "Chakra Petch";letter-spacing:.2em;text-transform:uppercase;color:var(--muted-2)}
+  .cc-status{font:600 11px/1 "Chakra Petch";letter-spacing:.06em;color:var(--bad);text-align:right}
+
+  /* crate placeholder */
+  .crate{position:relative;width:100%;aspect-ratio:1/1;display:grid;place-items:center}
+  .crate .lid{position:absolute;top:16%;width:82%;height:26%;border-radius:10px;z-index:2;
+    background:linear-gradient(180deg,#232a38,#141a24);border:1px solid var(--rc);
+    transform-origin:center bottom;transition:transform .45s cubic-bezier(.2,.8,.2,1)}
+  .crate .body{position:absolute;bottom:6%;width:88%;height:56%;border-radius:11px;
+    background:linear-gradient(180deg,#161b26,#0b0f16);border:1px solid var(--rc);
+    box-shadow:inset 0 0 26px var(--rcg);display:grid;place-items:center;padding:6px}
+  .crate .cn{font:700 clamp(14px,2vw,19px)/1 "Chakra Petch";color:#fff;letter-spacing:.06em;text-align:center}
+  .crate .cph{position:absolute;bottom:8%;font:600 9px/1 "Chakra Petch";letter-spacing:.16em;color:var(--muted-2);text-transform:uppercase}
+  .open .crate .lid{transform:translateY(-46%) rotate(-7deg)}
+  .open .crate .body{box-shadow:inset 0 0 30px var(--rcg),0 0 46px -8px var(--rcg)}
+
+  /* ================= OPENER ================= */
+  .back{appearance:none;cursor:pointer;background:none;border:0;color:var(--muted);font:600 13px/1 "Chakra Petch";
+    letter-spacing:.08em;padding:6px 2px;margin-bottom:12px;transition:.15s}
+  .back:hover{color:var(--gold)}
+  .back:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:6px}
+  .o-head{display:flex;align-items:baseline;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+  .o-head h2{margin:0;font:700 clamp(22px,4vw,32px)/1 "Chakra Petch";letter-spacing:.02em}
+  .o-tag{font:600 11px/1 "Chakra Petch";letter-spacing:.18em;text-transform:uppercase;color:var(--rc)}
+
+  .stage{display:grid;grid-template-columns:1fr 210px;gap:22px;align-items:center}
+  .stage-main{position:relative;min-height:340px;display:grid;place-items:center;border-radius:16px;
+    border:1px solid var(--line);overflow:hidden;background:radial-gradient(120% 120% at 50% 6%,var(--rcd),#04060a 62%)}
+  .case-back{position:absolute;z-index:1;width:min(250px,52%);aspect-ratio:1/1;display:grid;place-items:center}
+  .case-back img{position:absolute;left:0;right:0;margin:auto;max-width:100%;max-height:100%;object-fit:contain;
+    transition:transform .45s cubic-bezier(.2,.8,.2,1),opacity .3s;filter:drop-shadow(0 18px 26px rgba(0,0,0,.6))}
+  .case-back .c-top,.case-back .c-bottom{display:none}
+  .case-back.hasimg .crate{display:none}
+  .case-back.hasimg .c-closed{display:block}
+  .case-back.hasimg.open .c-closed{opacity:0}
+  .case-back.hasimg.open .c-top{display:block;transform:translateY(-36px)}
+  .case-back.hasimg.open .c-bottom{display:block}
+
+  .reel-frame{position:absolute;left:14px;right:14px;top:50%;margin-top:calc(var(--roll-h) / -2);z-index:3;
+    border-radius:13px;padding:2px;transform-origin:center;background:linear-gradient(180deg,#2a3140,#0c0f15 42%);
+    box-shadow:0 24px 60px -26px #000,0 0 0 1px rgba(0,0,0,.5)}
+  .roller{position:relative;overflow:hidden;height:var(--roll-h);border-radius:11px;
+    background:radial-gradient(140% 100% at 50% -20%,#12161f,transparent 60%),linear-gradient(180deg,#05070b,#0b0e14)}
+  .strip{position:absolute;top:50%;left:0;display:flex;gap:10px;transform:translate(0,-50%);will-change:transform}
+  .tile{position:relative;flex:0 0 auto;width:var(--tile);height:var(--tile);border-radius:9px;overflow:hidden;
+    border:1px solid var(--line);background:linear-gradient(180deg,var(--rcd),#080a0f 72%)}
+  .tile::before{content:"";position:absolute;inset:0;background:radial-gradient(120% 82% at 50% 122%,var(--rcg),transparent 62%);opacity:.9;transition:opacity .2s}
+  .tile::after{content:"";position:absolute;left:0;right:0;bottom:0;height:4px;background:var(--rc);box-shadow:0 0 14px var(--rc)}
+  .tile img{position:absolute;inset:13px 9px 19px;margin:auto;max-width:78%;max-height:74%;object-fit:contain;filter:drop-shadow(0 8px 12px rgba(0,0,0,.55));pointer-events:none}
+  .tile .lab{position:absolute;left:0;right:0;bottom:6px;text-align:center;font:600 12px/1 "Chakra Petch";letter-spacing:.05em;color:#fff;text-shadow:0 1px 3px #000}
+  .roller.done .tile:not(.win){filter:brightness(.5) saturate(.7);transition:filter .35s}
+  .tile.win{border-color:var(--rc);z-index:3;transform:scale(1.05);box-shadow:0 0 0 2px var(--rc),0 0 34px var(--rcg);transition:transform .35s,box-shadow .35s}
+  .tile.win::before{opacity:1}
+  .marker{position:absolute;top:0;bottom:0;left:50%;width:2px;z-index:6;transform:translateX(-50%);
+    background:linear-gradient(180deg,var(--gold),var(--gold-2));box-shadow:0 0 12px var(--gold),0 0 2px #fff}
+  .marker::before,.marker::after{content:"";position:absolute;left:50%;transform:translateX(-50%);border:9px solid transparent}
+  .marker::before{top:-2px;border-top-color:var(--gold)}
+  .marker::after{bottom:-2px;border-bottom-color:var(--gold)}
+  .fade{position:absolute;top:0;bottom:0;width:66px;z-index:5;pointer-events:none}
+  .fade.l{left:0;background:linear-gradient(90deg,#06090e,transparent)}
+  .fade.r{right:0;background:linear-gradient(270deg,#06090e,transparent)}
+  @keyframes jumpIn{0%{opacity:0;transform:translateY(30px) scale(.2)}62%{opacity:1;transform:translateY(-7px) scale(1.05)}100%{opacity:1;transform:translateY(0) scale(1)}}
+  .reel-frame.jump{animation:jumpIn .52s cubic-bezier(.2,.85,.25,1) both}
+
+  .side{align-self:stretch;padding-top:6px}
+  .side h3{margin:0 0 12px;font:600 12px/1 "Chakra Petch";letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+  .side .words{flex-direction:column;gap:11px}
+  .side .words li{font-size:16px}
+
+  .controls{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:22px}
+  .spin{appearance:none;cursor:pointer;border:0;border-radius:11px;padding:16px 54px;min-width:min(360px,80vw);
+    font:700 20px/1 "Chakra Petch";letter-spacing:.16em;text-transform:uppercase;color:#221a04;
+    background:linear-gradient(180deg,#ffe07a,var(--gold) 46%,var(--gold-2));
+    box-shadow:0 12px 30px -10px rgba(243,167,18,.6),inset 0 1px 0 rgba(255,255,255,.6);transition:transform .08s,filter .15s,opacity .15s}
+  .spin:hover{filter:brightness(1.06)}
+  .spin:active{transform:translateY(1px)}
+  .spin:focus-visible{outline:3px solid #fff;outline-offset:3px}
+  .spin[disabled]{cursor:not-allowed;filter:grayscale(.6) brightness(.62);opacity:.75}
+  .hint{color:var(--muted-2);font-size:13px;letter-spacing:.03em;min-height:16px}
+  .lock-note{max-width:52ch;text-align:center;color:#ffb4b4;font-size:13px;line-height:1.5;
+    background:rgba(235,75,75,.08);border:1px solid rgba(235,75,75,.35);border-radius:10px;padding:10px 14px}
+
+  .result{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:18px;margin-top:22px;padding:16px 20px;border-radius:12px;
+    border:1px solid var(--line);background:linear-gradient(180deg,var(--panel-2),var(--panel));box-shadow:0 0 40px -16px var(--rcg)}
+  .r-badge{position:relative;width:76px;height:76px;border-radius:10px;flex:0 0 auto;
+    background:radial-gradient(90% 80% at 50% 120%,var(--rcg),transparent 65%),var(--rcd);border:1px solid var(--rc);display:grid;place-items:center}
+  .r-badge img{width:78%;height:78%;object-fit:contain;filter:drop-shadow(0 4px 8px rgba(0,0,0,.6))}
+  .r-tag{display:inline-block;font:600 11px/1 "Chakra Petch";letter-spacing:.2em;text-transform:uppercase;color:var(--rc);
+    border:1px solid var(--rc);border-radius:999px;padding:5px 10px;margin-bottom:8px}
+  .r-name{font:700 26px/1 "Chakra Petch";color:#fff}
+  .r-desc{color:var(--muted);font-size:14px;margin-top:4px}
+  .r-bal{margin-top:8px;font:700 15px/1 "Rajdhani";letter-spacing:.03em;font-variant-numeric:tabular-nums}
+  .r-bal.up{color:var(--good)} .r-bal.down{color:var(--bad)} .r-bal.flat{color:var(--muted)}
+
+  .foot{margin-top:30px;color:var(--muted-2);font-size:12px;line-height:1.6;text-align:center}
+
+  @media (max-width:640px){
+    .stage{grid-template-columns:1fr}
+    .side{border-top:1px solid var(--line);padding-top:16px}
+    .side .words{flex-direction:row;flex-wrap:wrap}
+    .case-card{grid-template-columns:108px 1fr}
+  }
+  @media (max-width:430px){ .u-name{display:none} }
+  @media (prefers-reduced-motion:reduce){
+    .reel-frame.jump{animation:none}
+    .tile.win,.roller.done .tile:not(.win),.case-back img,.crate .lid,.u-coin b.bump{transition:none;animation:none}
+  }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <p class="eyebrow">ProjectCase.io</p>
+      <h1>Case Vault</h1>
+    </div>
+
+    <div class="hud">
+      <button class="mute" id="mute" aria-pressed="false" title="Toggle sound" aria-label="Toggle sound">🔊</button>
+      <div class="user-chip" id="userChip" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false" aria-label="Open profile">
+        <span class="u-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="12" cy="7.5" r="3.8"/><path d="M4.5 20c0-4.2 3.4-6.5 7.5-6.5s7.5 2.3 7.5 6.5z"/></svg></span>
+        <span class="u-name" id="uName">User One</span>
+        <span class="u-coin"><span class="coin"></span><b id="coinVal">1</b></span>
+      </div>
+
+      <div class="user-panel" id="userPanel" hidden>
+        <div class="up-head">
+          <span class="up-avatar"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="7.5" r="3.8"/><path d="M4.5 20c0-4.2 3.4-6.5 7.5-6.5s7.5 2.3 7.5 6.5z"/></svg></span>
+          <div><div class="up-name" id="pName">User One</div><div class="up-sub" id="pSub">Player #1</div></div>
+        </div>
+        <div class="up-stats">
+          <div class="stat"><span>Balance</span><b id="stBal">1</b></div>
+          <div class="stat"><span>Tokens</span><b id="stTok">6 / 6</b></div>
+          <div class="stat"><span>Case 04</span><b id="stC4">Ready</b></div>
+        </div>
+        <div class="up-div"></div>
+        <form class="up-reset" id="resetForm" autocomplete="off">
+          <label for="resetPw">Reset user &middot; staff code</label>
+          <div class="reset-row">
+            <input type="password" id="resetPw" placeholder="••••" inputmode="text" autocomplete="off" aria-label="Reset password">
+            <button type="submit">Reset</button>
+          </div>
+          <div class="reset-msg" id="resetMsg" role="status"></div>
+        </form>
+        <p class="up-hint">Resetting wipes this user and starts a fresh one with 6 tokens and Balance 1.</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== MENU ===== -->
+  <section id="menu">
+    <p class="intro">Four cases, four sets of odds. Each spin costs tokens; the case result grows or wipes your Balance. Pick one &mdash; the reel leaps out of the case and locks in whatever stops under the ticker.</p>
+    <div class="cases" id="cases"></div>
+  </section>
+
+  <!-- ===== OPENER ===== -->
+  <section id="opener" hidden>
+    <button class="back" id="back">&larr; All cases</button>
+    <div class="o-head"><h2 id="oName">Case</h2><span class="o-tag" id="oTag"></span></div>
+    <div class="stage" id="stage">
+      <div class="stage-main">
+        <div class="case-back" id="caseBack">
+          <div class="crate" aria-hidden="true"><div class="lid"></div><div class="body"><span class="cn" id="phName">Case</span></div><span class="cph">Artwork placeholder</span></div>
+          <img class="c-closed" id="cClosed" alt="">
+          <img class="c-top" id="cTop" alt="">
+          <img class="c-bottom" id="cBottom" alt="">
+        </div>
+        <div class="reel-frame" id="reelFrame" hidden>
+          <div class="roller" id="roller">
+            <div class="strip" id="strip"></div>
+            <div class="fade l"></div><div class="fade r"></div><div class="marker"></div>
+          </div>
+        </div>
+      </div>
+      <aside class="side" id="side"></aside>
+    </div>
+    <div class="controls">
+      <button class="spin" id="spin">Open Case</button>
+      <div class="hint" id="hint">sound on</div>
+      <div class="lock-note" id="lockNote" hidden></div>
+    </div>
+    <section class="result" id="result" hidden data-r="">
+      <div class="r-badge"><img id="rImg" alt=""></div>
+      <div>
+        <span class="r-tag" id="rTag"></span>
+        <div class="r-name" id="rName"></div>
+        <div class="r-desc" id="rDesc"></div>
+        <div class="r-bal" id="rBal"></div>
+      </div>
+    </section>
+  </section>
+
+  <p class="foot">
+    Reel tick is synthesized live with the Web Audio API &middot; reveal sounds are this project's own Gold / Level&nbsp;1&ndash;3 clips.
+    Drop case art into <code>/assets</code> (<code>caseN-closed.png</code>, <code>caseN-open-top.png</code>, <code>caseN-open-bottom.png</code>) to replace the crate placeholders.
+  </p>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ---------- catalogue ---------- */
+  const TIERS = {
+    gold:   { rarity:"gold",   tag:"Exceedingly Rare", audio:"assets/gold.mp3"   },
+    level3: { rarity:"red",    tag:"Covert",           audio:"assets/level3.mp3" },
+    level2: { rarity:"purple", tag:"Restricted",       audio:"assets/level2.mp3" },
+    level1: { rarity:"blue",   tag:"Mil-Spec",         audio:"assets/level1.mp3" },
+  };
+  // effect: how each outcome changes Balance, plus reveal text.
+  const ITEMS = {
+    gold: { label:"GOLD",     img:"assets/gold.png",    tier:"gold",   weight:1,  desc:"Jackpot — the golden prize.", fx:c=>c+10, fxt:"Jackpot +10" },
+    plus3:{ label:"+3",       img:"assets/plus3.png",   tier:"level3", weight:3,  desc:"Add three to your balance.",  fx:c=>c+3,  fxt:"+3 balance" },
+    x3:   { label:"×3",       img:"assets/x3.png",      tier:"level3", weight:3,  desc:"Triple your balance.",        fx:c=>c*3,  fxt:"×3 balance" },
+    x0:   { label:"LOSE ALL", img:"assets/loseall.png", tier:"level3", weight:6,  desc:"×0 — your balance is wiped.", fx:c=>0,    fxt:"Balance wiped (×0)" },
+    plus1:{ label:"+1",       img:"assets/plus1.png",   tier:"level2", weight:12, desc:"Add one.",                    fx:c=>c+1,  fxt:"+1 balance" },
+    plus2:{ label:"+2",       img:"assets/plus2.png",   tier:"level2", weight:8,  desc:"Add two.",                    fx:c=>c+2,  fxt:"+2 balance" },
+    x2:   { label:"×2",       img:"assets/x2.png",      tier:"level2", weight:8,  desc:"Double your balance.",        fx:c=>c*2,  fxt:"×2 balance" },
+    none: { label:"NONE",     img:"assets/none.png",    tier:"level1", weight:40, desc:"No change this time.",        fx:c=>c,    fxt:"No change" },
+  };
+  const RANK = { gold:0, level3:1, level2:2, level1:3 };
+  const rarityOf = (k) => TIERS[ITEMS[k].tier].rarity;
+
+  const art = (n) => ({ closed:`assets/case${n}-closed.png`, top:`assets/case${n}-open-top.png`, bottom:`assets/case${n}-open-bottom.png` });
+  const CASES = [
+    { id:1, name:"Case 01", tag:"Low stakes",   sig:"blue",   img:art(1), cost:1, once:false, pool:["plus1","none","x0"] },
+    { id:2, name:"Case 02", tag:"Balanced",     sig:"purple", img:art(2), cost:2, once:false, pool:["x0","none","plus1","plus2","plus3"] },
+    { id:3, name:"Case 03", tag:"High variance",sig:"red",    img:art(3), cost:3, once:false, pool:["x0","plus3","x3","plus1","plus2","x2","none"] },
+    { id:4, name:"Case 04", tag:"Gold inside",  sig:"gold",   img:art(4), cost:0, once:true,  pool:["gold","plus3","x3","x0","plus1","plus2","x2","none"] },
+  ];
+
+  const wordsHTML = (pool) => [...pool]
+    .sort((a,b)=>RANK[ITEMS[a].tier]-RANK[ITEMS[b].tier] || ITEMS[b].weight-ITEMS[a].weight)
+    .map(k=>`<li data-r="${rarityOf(k)}"><span class="dot"></span>${ITEMS[k].label}</li>`).join("");
+
+  /* ---------- user economy ---------- */
+  const START_TOKENS = 6, START_BALANCE = 1, RESET_PW = "CMCN", LS_KEY = "casevault:user";
+  const WORDS = ["Zero","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve"];
+
+  function defaultUser(n){ return { n:n||1, coins:START_BALANCE, tokens:START_TOKENS, case4Used:false }; }
+  function loadUser(){
+    try{
+      const u = JSON.parse(localStorage.getItem(LS_KEY));
+      if (u && Number.isFinite(u.n) && Number.isFinite(u.coins) && Number.isFinite(u.tokens))
+        return { n:Math.max(1,u.n|0), coins:Math.max(0,u.coins), tokens:Math.max(0,u.tokens|0), case4Used:!!u.case4Used };
+    }catch(e){}
+    return defaultUser(1);
+  }
+  function saveUser(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(user)); }catch(e){} }
+  let user = loadUser();
+
+  const userName = () => user.n < WORDS.length ? "User "+WORDS[user.n] : "User #"+user.n;
+  const isStuck  = () => user.coins<=0 || (user.tokens<1 && user.case4Used);
+
+  function canSpin(c){
+    if (user.coins<=0)                   return { ok:false, reason:"Balance is 0", stuck:true };
+    if (c.once && user.case4Used)        return { ok:false, reason:"1 try used" };
+    if (c.cost>0 && user.tokens<c.cost)  return { ok:false, reason:`Need ${c.cost} tokens` };
+    return { ok:true };
+  }
+
+  /* ---------- dom ---------- */
+  const $ = (id) => document.getElementById(id);
+  const menu=$("menu"), opener=$("opener"), casesEl=$("cases");
+  const roller=$("roller"), strip=$("strip"), reelFrame=$("reelFrame"), caseBack=$("caseBack");
+  const cClosed=$("cClosed"), cTop=$("cTop"), cBottom=$("cBottom");
+  const spinBtn=$("spin"), hint=$("hint"), lockNote=$("lockNote"), side=$("side"), muteBtn=$("mute");
+  const result=$("result"), rImg=$("rImg"), rTag=$("rTag"), rName=$("rName"), rDesc=$("rDesc"), rBal=$("rBal");
+  const chip=$("userChip"), panel=$("userPanel"), uName=$("uName"), coinVal=$("coinVal");
+  const pName=$("pName"), pSub=$("pSub"), stBal=$("stBal"), stTok=$("stTok"), stC4=$("stC4");
+  const resetForm=$("resetForm"), resetPw=$("resetPw"), resetMsg=$("resetMsg");
+
+  const reduce = matchMedia("(prefers-reduced-motion:reduce)").matches;
+  const STRIP_LEN = 80, WIN_INDEX = 72;
+
+  /* ---------- audio ---------- */
+  let muted=false, unlocked=false, actx=null, tickGain=null, lastTick=0;
+  const clips={};
+  for (const t in TIERS){ const a=new Audio(TIERS[t].audio); a.preload="auto"; clips[t]=a; }
+  function ensureCtx(){
+    if(!actx){ const AC=window.AudioContext||window.webkitAudioContext;
+      if(AC){ actx=new AC(); tickGain=actx.createGain(); tickGain.gain.value=0.5; tickGain.connect(actx.destination); } }
+    if(actx&&actx.state==="suspended") actx.resume();
+  }
+  function unlockClips(){
+    if(unlocked) return; unlocked=true;
+    Object.values(clips).forEach(a=>{ a.muted=true; const p=a.play();
+      if(p&&p.then) p.then(()=>{a.pause();a.currentTime=0;a.muted=false;}).catch(()=>{a.muted=false;});
+      else { try{a.pause();a.currentTime=0;}catch(e){} a.muted=false; } });
+  }
+  function tick(){
+    if(muted||!actx) return; const now=actx.currentTime; if(now-lastTick<0.02) return; lastTick=now;
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type="square"; o.frequency.value=1020+Math.random()*90;
+    g.gain.setValueAtTime(0.0001,now); g.gain.exponentialRampToValueAtTime(0.9,now+0.002); g.gain.exponentialRampToValueAtTime(0.0001,now+0.045);
+    o.connect(g); g.connect(tickGain); o.start(now); o.stop(now+0.05);
+  }
+  function playReveal(tier){ if(muted) return; const a=clips[tier]; if(!a) return; try{ a.currentTime=0; a.volume=0.9; a.play(); }catch(e){} }
+
+  /* ---------- reel ---------- */
+  const easeOutQuart = (t)=>1-Math.pow(1-t,4);
+  function weightedPick(pool){ const tot=pool.reduce((s,k)=>s+ITEMS[k].weight,0); let r=Math.random()*tot;
+    for(const k of pool){ r-=ITEMS[k].weight; if(r<=0) return k; } return pool[pool.length-1]; }
+  function makeTile(k){ const el=document.createElement("div"); el.className="tile"; el.dataset.r=rarityOf(k);
+    el.innerHTML=`<img src="${ITEMS[k].img}" alt="${ITEMS[k].label}"><span class="lab">${ITEMS[k].label}</span>`; return el; }
+  function buildStrip(winner,pool){ strip.style.transition="none"; strip.style.transform="translate(0,-50%)"; strip.innerHTML="";
+    for(let i=0;i<STRIP_LEN;i++) strip.appendChild(makeTile(i===WIN_INDEX&&winner?winner:weightedPick(pool))); }
+
+  /* ---------- render user ---------- */
+  function renderUser(o){
+    o=o||{};
+    uName.textContent=userName();
+    coinVal.textContent=user.coins;
+    if(o.animate){ coinVal.classList.remove("bump","up","down"); void coinVal.offsetWidth;
+      coinVal.classList.add("bump"); if(o.dir==="up") coinVal.classList.add("up"); else if(o.dir==="down") coinVal.classList.add("down"); }
+    pName.textContent=userName(); pSub.textContent="Player #"+user.n;
+    stBal.textContent=user.coins; stTok.textContent=user.tokens+" / "+START_TOKENS; stC4.textContent=user.case4Used?"Used":"Ready";
+    chip.classList.toggle("stuck", isStuck());
+    chip.setAttribute("aria-label", `Profile — ${userName()}, balance ${user.coins}`);
+  }
+
+  /* ---------- menu ---------- */
+  const cardEls=[];
+  function buildMenu(){
+    CASES.forEach(c=>{
+      const costLabel = c.once ? "1 try only" : (c.cost+" token"+(c.cost>1?"s":"")+" / spin");
+      const card=document.createElement("button");
+      card.className="case-card"; card.dataset.sig=c.sig; card.setAttribute("aria-label",`Open ${c.name}`);
+      card.innerHTML =
+        `<div class="crate"><div class="lid"></div><div class="body"><span class="cn">${c.name}</span></div></div>
+         <div class="cc-info">
+           <div class="cc-topline"><span class="cc-name">${c.name}</span><span class="cc-cost">${costLabel}</span></div>
+           <div class="cc-tag">${c.tag}</div>
+           <ul class="words">${wordsHTML(c.pool)}</ul>
+         </div>
+         <div class="cc-foot"><span class="cc-cta">Open case →</span><span class="cc-status"></span></div>`;
+      card.addEventListener("click", ()=>selectCase(c));
+      casesEl.appendChild(card);
+      cardEls.push({ el:card, c, status:card.querySelector(".cc-status") });
+    });
+  }
+  function refreshMenu(){
+    cardEls.forEach(({el,c,status})=>{ const g=canSpin(c); el.classList.toggle("locked",!g.ok); status.textContent=g.ok?"":("🔒 "+g.reason); });
+  }
+
+  /* ---------- opener ---------- */
+  let cur=null, spinning=false, reelShown=false;
+
+  function setCaseImages(c){
+    caseBack.classList.remove("hasimg");
+    cClosed.onload=()=>caseBack.classList.add("hasimg");
+    cClosed.onerror=()=>caseBack.classList.remove("hasimg");
+    cClosed.src=c.img.closed; cTop.src=c.img.top; cBottom.src=c.img.bottom;
+  }
+  function selectCase(c){
+    cur=c; spinning=false; reelShown=false;
+    $("oName").textContent=c.name; $("oTag").textContent=c.tag; $("phName").textContent=c.name;
+    caseBack.dataset.sig=c.sig; side.dataset.sig=c.sig;
+    side.innerHTML=`<h3>In this case</h3><ul class="words">${wordsHTML(c.pool)}</ul>`;
+    caseBack.classList.remove("open"); reelFrame.hidden=true; reelFrame.classList.remove("jump");
+    roller.classList.remove("done"); result.hidden=true;
+    setCaseImages(c);
+    menu.hidden=true; opener.hidden=false;
+    updateSpinState();
+    window.scrollTo({top:0,behavior:"instant"});
+  }
+
+  function updateSpinState(){
+    if(!cur) return;
+    const g=canSpin(cur);
+    spinBtn.disabled = spinning || !g.ok;
+    if(!spinning){
+      if(g.ok){
+        spinBtn.textContent = reelShown ? "Spin Again" : "Open Case";
+        hint.textContent = (cur.cost? `Costs ${cur.cost} token${cur.cost>1?"s":""}` : "Free · 1 try only") + ` · ${user.tokens} left`;
+      } else {
+        spinBtn.textContent = "Locked";
+        hint.textContent = cur.once && user.case4Used ? "Case 04 — your 1 try is used"
+                          : user.coins<=0 ? "Balance hit 0" : `Need ${cur.cost} tokens · you have ${user.tokens}`;
+      }
+    }
+    lockNote.hidden = !isStuck();
+    if(isStuck()) lockNote.innerHTML = `🔒 ${user.coins<=0?"Balance hit 0 — you're out.":"Out of tokens."} Open your profile <b>(top&#8209;right)</b> and enter the reset code to start a new user.`;
+  }
+
+  function spin(){
+    if(spinning||!cur) return;
+    const g=canSpin(cur); if(!g.ok){ updateSpinState(); return; }
+    ensureCtx(); unlockClips();
+    if(cur.cost) user.tokens-=cur.cost;
+    if(cur.once) user.case4Used=true;
+    saveUser(); renderUser(); refreshMenu();
+    spinning=true; result.hidden=true; roller.classList.remove("done");
+    spinBtn.disabled=true; spinBtn.textContent="Opening…"; hint.textContent="";
+    const winner=weightedPick(cur.pool);
+    buildStrip(winner,cur.pool);
+    if(!reelShown){
+      reelShown=true; caseBack.classList.add("open"); reelFrame.hidden=false;
+      if(!reduce){ void reelFrame.offsetWidth; reelFrame.classList.add("jump"); }
+      setTimeout(()=>runSpin(winner), reduce?0:520);
+    } else runSpin(winner);
+  }
+
+  function runSpin(winner){
+    requestAnimationFrame(()=>{
+      const tiles=strip.children, first=tiles[0];
+      const step=tiles[1].offsetLeft-first.offsetLeft, winTile=tiles[WIN_INDEX];
+      const center=roller.clientWidth/2;
+      const jitter=(Math.random()*2-1)*(winTile.offsetWidth*0.36);
+      const finalX=center-(winTile.offsetLeft+winTile.offsetWidth/2)+jitter, firstLeft=first.offsetLeft;
+      const duration=reduce?650:6600, startT=performance.now(); let lastIdx=-Infinity;
+      function frame(now){
+        let t=(now-startT)/duration; if(t>1)t=1;
+        const x=finalX*(reduce?t:easeOutQuart(t));
+        strip.style.transform=`translate(${x}px,-50%)`;
+        if(!reduce){ const idx=Math.floor((center-x-firstLeft)/step); if(idx!==lastIdx){ lastIdx=idx; if(t<0.995) tick(); } }
+        if(t<1) requestAnimationFrame(frame); else finish(winner,winTile);
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  function finish(winner,winTile){
+    winTile.classList.add("win"); roller.classList.add("done");
+    playReveal(ITEMS[winner].tier);
+    // apply result to balance
+    const before=user.coins, after=Math.max(0, ITEMS[winner].fx(before));
+    user.coins=after; saveUser();
+    const dir = after>before?"up":(after<before?"down":"flat");
+    renderUser({animate:true,dir}); refreshMenu();
+    showResult(winner, before, after, dir);
+    spinning=false;
+    updateSpinState();
+  }
+
+  function showResult(key, before, after, dir){
+    const it=ITEMS[key], r=TIERS[it.tier];
+    result.dataset.r=r.rarity;
+    rImg.src=it.img; rImg.alt=it.label;
+    rTag.textContent=r.tag;
+    rName.textContent = it.label==="LOSE ALL" ? "Lose All (×0)" : it.label;
+    rDesc.textContent=it.desc;
+    rBal.className="r-bal "+dir;
+    rBal.textContent = `${it.fxt} · Balance ${before} → ${after}`;
+    result.hidden=false;
+  }
+
+  /* ---------- profile panel ---------- */
+  function openPanel(){ panel.hidden=false; chip.setAttribute("aria-expanded","true"); }
+  function closePanel(){ panel.hidden=true; chip.setAttribute("aria-expanded","false"); resetMsg.textContent=""; resetMsg.className="reset-msg"; }
+  function togglePanel(){ panel.hidden ? openPanel() : closePanel(); }
+
+  chip.addEventListener("click", togglePanel);
+  chip.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); togglePanel(); } });
+  document.addEventListener("click", e=>{ if(!panel.hidden && !e.target.closest(".hud")) closePanel(); });
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape" && !panel.hidden) closePanel(); });
+
+  resetForm.addEventListener("submit", e=>{
+    e.preventDefault();
+    if(resetPw.value===RESET_PW){
+      user = defaultUser(user.n+1); saveUser(); resetPw.value="";
+      renderUser(); refreshMenu();
+      resetMsg.textContent = `✓ ${userName()} created — fresh tokens.`; resetMsg.className="reset-msg ok";
+      if(!opener.hidden){ reelShown=false; caseBack.classList.remove("open"); reelFrame.hidden=true;
+        result.hidden=true; roller.classList.remove("done"); updateSpinState(); }
+      setTimeout(closePanel, 1200);
+    } else {
+      resetMsg.textContent="✗ Incorrect code."; resetMsg.className="reset-msg err";
+      panel.classList.remove("shake"); void panel.offsetWidth; panel.classList.add("shake"); resetPw.select();
+    }
+  });
+
+  /* ---------- wiring ---------- */
+  $("back").addEventListener("click", ()=>{ menu.hidden=false; opener.hidden=true; refreshMenu(); });
+  spinBtn.addEventListener("click", spin);
+  muteBtn.addEventListener("click", ()=>{
+    muted=!muted; muteBtn.textContent=muted?"🔇":"🔊"; muteBtn.setAttribute("aria-pressed",String(muted));
+    if(!spinning && !opener.hidden) updateSpinState();
+  });
+
+  buildMenu(); renderUser(); refreshMenu();
+})();
+</script>
